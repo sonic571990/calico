@@ -1,0 +1,59 @@
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.VisualBasic;
+
+namespace Encryption;
+class Program
+{
+    static void Main(string[] args)
+    {
+
+        string filePath = args[0];
+        string key = args[1];
+
+        string destPath = Path.Combine(Path.GetDirectoryName(filePath), Path.GetFileNameWithoutExtension(filePath));
+
+        Encrypt(filePath, key, destPath);
+        
+    }
+
+    private static byte[] iv = new byte[]
+               {  };
+
+    private static byte[] GetSha(string key)
+    {
+        StringBuilder Sb = new StringBuilder();
+        using (SHA256 hash = SHA256Managed.Create())
+        {
+            Encoding enc = Encoding.UTF8;
+            Byte[] result = hash.ComputeHash(enc.GetBytes(key));
+            return result;
+        }
+    }
+ 
+    private static void Encrypt(string sourceFile, string key, string destPath)
+    {
+        var keyBytes = GetSha(key);
+
+        using (var symmetricKey = new RijndaelManaged())
+        {
+            symmetricKey.BlockSize = 128;
+            symmetricKey.Mode = CipherMode.CBC;
+            symmetricKey.Padding = PaddingMode.PKCS7;
+            var encryptor = symmetricKey.CreateEncryptor(keyBytes, iv);
+
+            using var fIn = new FileStream(sourceFile, FileMode.Open, FileAccess.Read);
+            byte[] buffer = new byte[4096];
+            int read = 0;
+            while ((read = fIn.Read(buffer)) > 0)
+            {
+                var encBytes = encryptor.TransformFinalBlock(buffer, 0, read);
+                //Span<byte> spn = new Span<byte>(encBytes, 0, write);
+                var base64 = Convert.ToBase64String(encBytes);
+                File.AppendAllLines(destPath, new string[] { base64 });
+            }
+
+        }
+    }
+}
